@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/pion/webrtc"
 )
@@ -17,7 +18,12 @@ func main() {
 	offer := flag.Bool("offer", false, "exposed service")
 	exposeAddr := flag.String("expose", "localhost:22", "exposed service")
 	listenerAddr := flag.String("listen", ":10000", "local listener for remote service(e.g. ssh)")
+	help := flag.Bool("help", false, "help")
 	flag.Parse()
+	if *help {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
 
 	if *offer {
 		fmt.Println("offer (client) mode")
@@ -28,7 +34,7 @@ func main() {
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{"stun:hare1039.nctu.me:3478"},
+				URLs: []string{"stun:140.113.56.70:3478", "stun:hare1039.nctu.me:3478", "stun:stun.l.google.com:19302"},
 			},
 		},
 	}
