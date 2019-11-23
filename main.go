@@ -7,15 +7,14 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 
 	"github.com/pion/webrtc"
 )
 
 func main() {
-	addr := flag.String("address", ":51632", "HTTP server for exange candidates")
-	offer := flag.Bool("offer", false, "exposed service")
+	addr := flag.String("signal", "hare1039.nctu.me:6666", "Signal server")
+	offer := flag.Bool("offer", false, "connect to exposed service")
 	exposeAddr := flag.String("expose", "localhost:22", "exposed service")
 	listenerAddr := flag.String("listen", ":10000", "local listener for remote service(e.g. ssh)")
 	help := flag.Bool("help", false, "help")
@@ -120,36 +119,39 @@ func exposeServer(config webrtc.Configuration, exposeAddr string) *webrtc.PeerCo
 
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			conn.Write(msg.Data)
-			//			fmt.Printf("Message write '%s': '%s'\n", d.Label(), String(msg.Data))
 		})
 	})
 
 	return peer
 }
 
-func httpSignal(address string) (offerOut chan webrtc.SessionDescription, answerIn chan webrtc.SessionDescription) {
+func httpSignal(signalServer string) (offerOut chan webrtc.SessionDescription, answerIn chan webrtc.SessionDescription) {
 	offerOut = make(chan webrtc.SessionDescription)
 	answerIn = make(chan webrtc.SessionDescription)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		var offer webrtc.SessionDescription
-		err := json.NewDecoder(r.Body).Decode(&offer)
+	go func() {
+		conn, err := net.Dial("tcp", signalServer)
 		if err != nil {
 			panic(err)
 		}
+
+		var offer webrtc.SessionDescription
+		err = json.NewDecoder(conn).Decode(&offer)
+		if err != nil {
+			panic(err)
+		}
+
 		offerOut <- offer
 		answer := <-answerIn
-		err = json.NewEncoder(w).Encode(answer)
+		err = json.NewEncoder(conn).Encode(answer)
 		if err != nil {
 			panic(err)
 		}
-	})
 
-	go func() {
-		panic(http.ListenAndServe(address, nil))
+		conn.Write([]byte("\n"))
+		fmt.Println("Wrote.ReadBytes")
 	}()
 
-	fmt.Println("Listening on", address)
 	return
 }
 
@@ -199,32 +201,35 @@ func offerClient(config webrtc.Configuration, listenerAddr string) *webrtc.PeerC
 
 	d.OnMessage(func(msg webrtc.DataChannelMessage) {
 		conn.Write(msg.Data)
-		//		fmt.Printf("Message write '%s': '%s'\n", d.Label(), String(msg.Data))
 	})
 
 	return peer
 }
 
-func offerSignal(offer webrtc.SessionDescription, address string) webrtc.SessionDescription {
+func offerSignal(offer webrtc.SessionDescription, signalServer string) webrtc.SessionDescription {
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(offer)
 	if err != nil {
 		panic(err)
 	}
 
-	resp, err := http.Post("http://"+address, "application/json; charset=utf-8", b)
+	conn, err := net.Dial("tcp", signalServer)
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		closeErr := resp.Body.Close()
-		if closeErr != nil {
-			panic(closeErr)
-		}
-	}()
+
+	conn.Write(b.Bytes())
+	conn.Write([]byte("\n"))
+
+	//	reader := bufio.NewReader(conn)
+	//	data, err := reader.ReadBytes('\n')
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	fmt.Println("reader.ReadBytes ed")
 
 	var answer webrtc.SessionDescription
-	err = json.NewDecoder(resp.Body).Decode(&answer)
+	err = json.NewDecoder(conn).Decode(&answer)
 	if err != nil {
 		panic(err)
 	}
