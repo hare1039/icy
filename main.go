@@ -149,7 +149,6 @@ func httpSignal(signalServer string) (offerOut chan webrtc.SessionDescription, a
 		}
 
 		conn.Write([]byte("\n"))
-		fmt.Println("Wrote.ReadBytes")
 	}()
 
 	return
@@ -220,13 +219,6 @@ func offerSignal(offer webrtc.SessionDescription, signalServer string) webrtc.Se
 
 	conn.Write(b.Bytes())
 	conn.Write([]byte("\n"))
-
-	//	reader := bufio.NewReader(conn)
-	//	data, err := reader.ReadBytes('\n')
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	fmt.Println("reader.ReadBytes ed")
 
 	var answer webrtc.SessionDescription
 	err = json.NewDecoder(conn).Decode(&answer)
