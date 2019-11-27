@@ -13,7 +13,8 @@ import (
 )
 
 func main() {
-	addr := flag.String("signal", "hare1039.nctu.me:6666", "Signal server")
+	signalAddr := flag.String("signal", "hare1039.nctu.me:6666", "Signal server")
+	stunAddr := flag.String("stun", "hare1039.nctu.me:3478", "STUN server")
 	offer := flag.Bool("offer", false, "connect to exposed service")
 	exposeAddr := flag.String("expose", "localhost:22", "exposed service")
 	listenerAddr := flag.String("listen", ":10000", "local listener for remote service(e.g. ssh)")
@@ -33,7 +34,7 @@ func main() {
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{"stun:140.113.56.70:3478", "stun:hare1039.nctu.me:3478", "stun:stun.l.google.com:19302"},
+				URLs: []string{"stun:" + *stunAddr, "stun:stun.l.google.com:19302"},
 			},
 		},
 	}
@@ -41,7 +42,7 @@ func main() {
 	if !*offer {
 		// serve peer candidate
 		peer := exposeServer(config, *exposeAddr)
-		offerChan, answerChan := httpSignal(*addr)
+		offerChan, answerChan := connectSignal(*signalAddr)
 		offer := <-offerChan
 
 		if err := peer.SetRemoteDescription(offer); err != nil {
@@ -74,7 +75,7 @@ func main() {
 		}
 
 		// Exchange the offer for the answer
-		answer := offerSignal(offer, *addr)
+		answer := offerSignal(offer, *signalAddr)
 
 		// Apply the answer as the remote description
 		err = peer.SetRemoteDescription(answer)
@@ -125,7 +126,7 @@ func exposeServer(config webrtc.Configuration, exposeAddr string) *webrtc.PeerCo
 	return peer
 }
 
-func httpSignal(signalServer string) (offerOut chan webrtc.SessionDescription, answerIn chan webrtc.SessionDescription) {
+func connectSignal(signalServer string) (offerOut chan webrtc.SessionDescription, answerIn chan webrtc.SessionDescription) {
 	offerOut = make(chan webrtc.SessionDescription)
 	answerIn = make(chan webrtc.SessionDescription)
 
